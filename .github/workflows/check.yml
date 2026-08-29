@@ -1,0 +1,40 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Python 構文チェック
+        run: python -m compileall -q vm_drive_whisper.py drive_folder_inventory.py
+
+      # 依存は入れない。テストは純粋関数だけを対象にしており、
+      # faster-whisper と google-api-python-client はスタブで置き換える。
+      - name: 単体テスト
+        run: python -m unittest discover -s tests -t tests -v
+
+      - name: シェルスクリプト構文チェック
+        run: |
+          for f in scripts/setup_swap.sh scripts/*.example; do
+            echo "checking $f"
+            bash -n "$f"
+          done
+
+      # severity=error に絞っている。style/warning まで通すと、
+      # 意図的な書き方 (例: source 先を解決できない) で赤くなるため。
+      - name: shellcheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck --shell=bash --severity=error scripts/setup_swap.sh scripts/*.example

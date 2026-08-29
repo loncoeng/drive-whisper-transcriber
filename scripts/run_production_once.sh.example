@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -e
+
+BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+source "${BASE_DIR}/venv/bin/activate"
+
+GOOGLE_APPLICATION_CREDENTIALS="${GOOGLE_APPLICATION_CREDENTIALS}" \
+  python "${BASE_DIR}/vm_drive_whisper.py" \
+    --root-folder-id "${DRIVE_ROOT_FOLDER_ID}" \
+    --model "${WHISPER_MODEL:-medium}" \
+    --initial-prompt "${WHISPER_INITIAL_PROMPT:-}" \
+    --limit 0 \
+    --transfer-owner-to "${TRANSFER_OWNER_TO}" \
+    --cache-dir "${BASE_DIR}/cache" \
+    >> "${BASE_DIR}/drive-whisper-production.log" 2>&1

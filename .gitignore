@@ -1,0 +1,29 @@
+# Credentials and local configuration
+*.env
+!.env.example
+*token*.json
+*client_secret*.json
+credentials*.json
+
+# Runtime data
+*.log
+.cache/
+transcripts/
+*.mp3
+*.mp4
+*.m4a
+*.wav
+*.mov
+*.webm
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editor and OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

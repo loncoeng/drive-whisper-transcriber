@@ -1,0 +1,2 @@
+*.sh text eol=lf
+*.service.example text eol=lf

@@ -1,0 +1,15 @@
+[Unit]
+Description=Google Drive Whisper transcription batch
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/drive-whisper.env
+WorkingDirectory=/opt/drive-whisper
+ExecStart=/bin/bash /opt/drive-whisper/scripts/run_production.sh.example
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

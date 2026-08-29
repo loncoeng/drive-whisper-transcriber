@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -e
+
+BASE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ONCE_SCRIPT="${BASE_DIR}/scripts/run_production_once.sh.example"
+LOG_FILE="${BASE_DIR}/drive-whisper-production.log"
+PASS=1
+
+while true; do
+  echo "RETRY PASS: ${PASS}"
+  : > "${LOG_FILE}"
+
+  /bin/bash "${ONCE_SCRIPT}"
+
+  if grep -q '^ERROR:' "${LOG_FILE}"; then
+    echo "Errors remain after pass ${PASS}; retrying missing items in 60 seconds." >> "${LOG_FILE}"
+    PASS=$((PASS + 1))
+    sleep 60
+    continue
+  fi
+
+  # 全件のGoogleドキュメント作成が成功した場合だけVMを停止する。
+  shutdown -h now
+  exit 0
+done
