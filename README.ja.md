@@ -10,9 +10,6 @@ Google Drive 上の動画・音声を Google Compute Engine 上の Whisper で�
 数百件規模のメディアを、**8GB メモリの VM で、途中で落ちても人手を介さず完走させる**
 ことを目的に設計しています。
 
-> Batch transcription of Google Drive media using faster-whisper on a Compute
-> Engine VM, writing results back as Google Docs in the source folder.
-
 ## 設計上の判断
 
 **落ちる前提で組む。** Whisper medium は 8GB VM では OOM で落ちます。スワップを永続化した上で、
