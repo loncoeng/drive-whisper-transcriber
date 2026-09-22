@@ -1,6 +1,6 @@
 # drive-whisper-transcriber
 
-[![check](https://github.com/lon-coeng/drive-whisper-transcriber/actions/workflows/check.yml/badge.svg)](https://github.com/lon-coeng/drive-whisper-transcriber/actions/workflows/check.yml)
+[![check](https://github.com/loncoeng/drive-whisper-transcriber/actions/workflows/check.yml/badge.svg)](https://github.com/loncoeng/drive-whisper-transcriber/actions/workflows/check.yml)
 
 *[日本語版 / Japanese version](README.ja.md)*
 
