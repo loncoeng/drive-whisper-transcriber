@@ -2,8 +2,6 @@
 
 [![check](https://github.com/loncoeng/drive-whisper-transcriber/actions/workflows/check.yml/badge.svg)](https://github.com/loncoeng/drive-whisper-transcriber/actions/workflows/check.yml)
 
-*[日本語版 / Japanese version](README.ja.md)*
-
 Transcribes video and audio in Google Drive with Whisper on a Google Compute
 Engine VM, and writes the result back into the source folder as a Google Doc.
 

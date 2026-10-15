@@ -19,7 +19,7 @@ while true; do
     continue
   fi
 
-  # 全件のGoogleドキュメント作成が成功した場合だけVMを停止する。
+  # Only shut the VM down when every Google Doc was created successfully.
   shutdown -h now
   exit 0
 done

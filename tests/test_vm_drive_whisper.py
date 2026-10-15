@@ -1,9 +1,15 @@
-"""vm_drive_whisper.py の純粋関数に対する検査。
+"""Tests for the pure functions in vm_drive_whisper.py.
 
-重点は3つ。
-  - Drive クエリへ値を埋め込むときのエスケープ (安全性)
-  - 既存ドキュメントの照合 (冪等性。ここが崩れると二重に文字起こしされる)
-  - 文字起こしの整形と誤認識の補正 (挙動)
+Three things carry the weight.
+  - escaping values put into a Drive query (safety)
+  - matching an existing document (idempotency — break this and audio gets
+    transcribed twice)
+  - formatting a transcript and correcting what was misheard (behaviour)
+
+The Japanese below is data, not prose: it is what Drive holds, what the
+documents are named, and what Whisper produces. The correction table only
+exists because Whisper mishears Japanese, so an ASCII fixture would exercise
+nothing.
 """
 
 from __future__ import annotations
@@ -18,7 +24,7 @@ import vm_drive_whisper as vm  # noqa: E402
 
 
 class Segment:
-    """faster-whisper のセグメントの代役。使うのは start と text だけ。"""
+    """Stands in for a faster-whisper segment. Only start and text are used."""
 
     def __init__(self, start: float, text: str) -> None:
         self.start = start
@@ -26,7 +32,7 @@ class Segment:
 
 
 class Info:
-    """faster-whisper の検出言語情報の代役。"""
+    """Stands in for faster-whisper's detected-language information."""
 
     def __init__(self, language: str = "ja", probability: float = 0.98) -> None:
         self.language = language
@@ -34,26 +40,26 @@ class Info:
 
 
 MEDIA = {"id": "media-1", "name": "定例会議_2026-01-15.mp4"}
-PREFIX = "【文字起こし】"   # argparse の --doc-prefix 既定値
+PREFIX = "【文字起こし】"   # argparse's default for --doc-prefix
 
 
 class QuoteEscapingTest(unittest.TestCase):
-    def test_単一引用符をエスケープする(self):
-        # Drive のクエリは値を ' で囲む。エスケープしないと
-        # 名前に ' を含むフォルダで構文が壊れ、条件が意図せず変わる。
+    def test_a_single_quote_is_escaped(self):
+        # A Drive query wraps values in '. Unescaped, a folder with a ' in its
+        # name breaks the syntax and quietly changes what the query matches.
         self.assertEqual(vm.q("O'Brien"), "O\\'Brien")
 
-    def test_引用符が無ければそのまま返す(self):
+    def test_a_string_without_quotes_comes_back_unchanged(self):
         self.assertEqual(vm.q("定例会議"), "定例会議")
 
-    def test_複数の引用符をすべてエスケープする(self):
+    def test_every_quote_is_escaped(self):
         self.assertEqual(vm.q("a'b'c"), "a\\'b\\'c")
 
 
 class MatchingDocumentTest(unittest.TestCase):
-    """既に文字起こし済みかどうかの判定。ここが冪等性の要。"""
+    """Deciding whether this was already transcribed. Idempotency rests here."""
 
-    def test_元ファイルIDが一致すれば名前が変わっていても見つける(self):
+    def test_a_matching_source_id_is_found_even_after_a_rename(self):
         children = [
             {
                 "id": "doc-1",
@@ -66,7 +72,7 @@ class MatchingDocumentTest(unittest.TestCase):
         self.assertIsNotNone(found)
         self.assertEqual(found["id"], "doc-1")
 
-    def test_IDが無くても既定の名前が一致すれば見つける(self):
+    def test_without_an_id_the_default_name_is_enough(self):
         children = [
             {
                 "id": "doc-2",
@@ -76,7 +82,7 @@ class MatchingDocumentTest(unittest.TestCase):
         ]
         self.assertEqual(vm.matching_document(MEDIA, children, PREFIX)["id"], "doc-2")
 
-    def test_ドキュメント以外は名前が一致しても対象にしない(self):
+    def test_the_right_name_on_something_that_is_not_a_document_does_not_count(self):
         children = [
             {
                 "id": "not-a-doc",
@@ -86,7 +92,7 @@ class MatchingDocumentTest(unittest.TestCase):
         ]
         self.assertIsNone(vm.matching_document(MEDIA, children, PREFIX))
 
-    def test_別の元ファイルのドキュメントは対象にしない(self):
+    def test_a_document_from_a_different_source_does_not_count(self):
         children = [
             {
                 "id": "doc-3",
@@ -97,13 +103,13 @@ class MatchingDocumentTest(unittest.TestCase):
         ]
         self.assertIsNone(vm.matching_document(MEDIA, children, PREFIX))
 
-    def test_候補が無ければNoneを返す(self):
+    def test_no_candidates_is_None(self):
         self.assertIsNone(vm.matching_document(MEDIA, [], PREFIX))
 
-    def test_接頭辞を変えても既存ドキュメントを検出できる(self):
-        # 回帰テスト。以前は matching_document が接頭辞を直書きしていたため、
-        # --doc-prefix を既定から変えると名前照合が働かず、同じ音声を
-        # 二重に文字起こししていた。
+    def test_a_changed_prefix_still_finds_the_existing_document(self):
+        # A regression test. matching_document used to have the prefix written
+        # into it, so changing --doc-prefix from the default stopped the name
+        # matching and the same audio was transcribed twice.
         children = [
             {
                 "id": "doc-4",
@@ -115,7 +121,7 @@ class MatchingDocumentTest(unittest.TestCase):
         self.assertIsNotNone(found)
         self.assertEqual(found["id"], "doc-4")
 
-    def test_接頭辞が違えば名前照合の対象にしない(self):
+    def test_a_different_prefix_is_not_matched_by_name(self):
         children = [
             {
                 "id": "doc-5",
@@ -125,10 +131,10 @@ class MatchingDocumentTest(unittest.TestCase):
         ]
         self.assertIsNone(vm.matching_document(MEDIA, children, "【議事録】"))
 
-    def test_接頭辞が違っても元ファイルIDが一致すれば検出する(self):
-        # 名前が変わっていても appProperties が残っていれば拾える。
-        # 単一ファイルのやり直し (--source-file-id) でこれが効かず、
-        # 重複ドキュメントが作られていた。
+    def test_a_different_prefix_still_matches_on_the_source_id(self):
+        # The name may have changed, and appProperties survives it. This did
+        # not hold for a single-file rerun (--source-file-id), and duplicate
+        # documents were created.
         children = [
             {
                 "id": "doc-6",
@@ -141,20 +147,21 @@ class MatchingDocumentTest(unittest.TestCase):
 
 
 class FormatTranscriptTest(unittest.TestCase):
-    def test_見出しに元ファイル名と検出言語とファイルIDを含む(self):
+    def test_the_heading_carries_the_file_name_language_and_source_id(self):
+        # The heading is Japanese because it is read in the finished document.
         text = vm.format_transcript(MEDIA, [], Info())
         self.assertIn("定例会議_2026-01-15.mp4", text)
         self.assertIn("検出言語: ja（確率 0.98）", text)
         self.assertIn("元ファイルID: media-1", text)
 
-    def test_開始秒をhh_mm_ss形式に整形する(self):
+    def test_a_start_time_is_formatted_as_hh_mm_ss(self):
         segments = [Segment(0, "冒頭"), Segment(61, "1分1秒"), Segment(3725, "1時間2分5秒")]
         text = vm.format_transcript(MEDIA, segments, Info())
         self.assertIn("[00:00:00] 冒頭", text)
         self.assertIn("[00:01:01] 1分1秒", text)
         self.assertIn("[01:02:05] 1時間2分5秒", text)
 
-    def test_誤認識された固有名詞を補正する(self):
+    def test_misheard_names_are_corrected(self):
         segments = [Segment(0, "トレロとスラップの件はシャローシに確認")]
         text = vm.format_transcript(MEDIA, segments, Info())
         self.assertIn("Trello と Slack".replace(" と ", "と"), text)
@@ -163,23 +170,30 @@ class FormatTranscriptTest(unittest.TestCase):
         self.assertNotIn("スラップ", text)
         self.assertNotIn("シャローシ", text)
 
-    def test_長い語を先に補正して部分一致で壊さない(self):
-        # 「ローム部」は「ローム」を含む。短い方を先に適用すると
-        # 「労務部」ではなく「労務部」にならず壊れる。
+    def test_the_longer_term_is_corrected_first(self):
+        # トレロー contains トレロ. Take the shorter one first and the
+        # replacement leaves the trailing long-vowel mark behind: Trelloー.
+        # The table is ordered longest-first for exactly this.
+        segments = [Segment(0, "トレローの件")]
+        self.assertIn("[00:00:00] Trelloの件", vm.format_transcript(MEDIA, segments, Info()))
+
+    def test_a_multi_character_correction_survives_a_shorter_overlap(self):
+        # ローム部 and ローム are both in the table. This one comes out right
+        # either way, and it is here because it is the pair that gets edited.
         segments = [Segment(0, "ローム部へ連絡")]
         self.assertIn("労務部へ連絡", vm.format_transcript(MEDIA, segments, Info()))
 
-    def test_空白だけのセグメントは行にしない(self):
+    def test_a_segment_of_only_whitespace_produces_no_line(self):
         segments = [Segment(0, "   "), Segment(5, "本文")]
         lines = [l for l in vm.format_transcript(MEDIA, segments, Info()).splitlines() if l.startswith("[")]
         self.assertEqual(lines, ["[00:00:05] 本文"])
 
-    def test_同じ語の連続を畳む(self):
-        # 無音区間で Whisper が同じ語を繰り返すことがある。
+    def test_a_repeated_phrase_is_collapsed(self):
+        # Whisper repeats itself over a silent stretch.
         segments = [Segment(0, "会社の会社の会社の会社の方針")]
         self.assertIn("[00:00:00] 会社の方針", vm.format_transcript(MEDIA, segments, Info()))
 
-    def test_本文が無くても改行で終わる(self):
+    def test_it_ends_with_a_newline_even_with_no_body(self):
         self.assertTrue(vm.format_transcript(MEDIA, [], Info()).endswith("\n"))
 
 

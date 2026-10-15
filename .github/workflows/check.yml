@@ -27,23 +27,24 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Python 構文チェック
+      - name: Python syntax
         run: python -m compileall -q vm_drive_whisper.py drive_folder_inventory.py
 
-      # 依存は入れない。テストは純粋関数だけを対象にしており、
-      # faster-whisper と google-api-python-client はスタブで置き換える。
-      - name: 単体テスト
+      # Nothing is installed. The tests cover the pure functions only, and
+      # faster-whisper and google-api-python-client are replaced with stubs.
+      - name: Unit tests
         run: python -m unittest discover -s tests -t tests -v
 
-      - name: シェルスクリプト構文チェック
+      - name: Shell script syntax
         run: |
           for f in scripts/setup_swap.sh scripts/*.example; do
             echo "checking $f"
             bash -n "$f"
           done
 
-      # severity=error に絞っている。style/warning まで通すと、
-      # 意図的な書き方 (例: source 先を解決できない) で赤くなるため。
+      # Narrowed to severity=error. Letting style and warning through turns
+      # it red over things that are written that way on purpose — a source
+      # whose target cannot be resolved, for one.
       - name: shellcheck
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck

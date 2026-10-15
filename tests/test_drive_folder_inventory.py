@@ -1,7 +1,7 @@
-"""drive_folder_inventory.py の集計ロジックに対する検査。
+"""Tests for the counting in drive_folder_inventory.py.
 
-実行前に「何件・何時間ぶんを処理することになるのか」を数えるための
-スクリプト。ここが狂うと課金と実行時間の見積もりを誤る。
+The script that answers "how many, and how many hours" before a run. Wrong
+here and the estimate for the bill and the running time is wrong with it.
 """
 
 from __future__ import annotations
@@ -16,31 +16,33 @@ import drive_folder_inventory as inv  # noqa: E402
 
 
 class QuoteEscapingTest(unittest.TestCase):
-    def test_単一引用符をエスケープする(self):
+    def test_a_single_quote_is_escaped(self):
         self.assertEqual(inv.quote("O'Brien"), "O\\'Brien")
 
-    def test_引用符が無ければそのまま返す(self):
+    def test_a_string_without_quotes_comes_back_unchanged(self):
+        # Non-ASCII, because the names in Drive are, and because it is the
+        # case where nothing should happen at all.
         self.assertEqual(inv.quote("録画"), "録画")
 
 
 class DurationTest(unittest.TestCase):
-    def test_再生時間を整数ミリ秒で返す(self):
+    def test_a_duration_comes_back_as_whole_milliseconds(self):
         item = {"videoMediaMetadata": {"durationMillis": "3600000"}}
         self.assertEqual(inv.duration_ms(item), 3_600_000)
 
-    def test_メタデータが無ければNoneを返す(self):
+    def test_no_metadata_is_None(self):
         self.assertIsNone(inv.duration_ms({}))
 
-    def test_再生時間の項目が無ければNoneを返す(self):
+    def test_metadata_without_a_duration_is_None(self):
         self.assertIsNone(inv.duration_ms({"videoMediaMetadata": {}}))
 
 
 class SummarizeTest(unittest.TestCase):
-    def test_再生時間が分かるものと分からないものを数え分ける(self):
+    def test_known_and_unknown_durations_are_counted_separately(self):
         items = [
             {"videoMediaMetadata": {"durationMillis": "1800000"}},   # 0.5h
             {"videoMediaMetadata": {"durationMillis": "5400000"}},   # 1.5h
-            {},                                                       # 不明
+            {},                                                       # unknown
         ]
         result = inv.summarize(items)
         self.assertEqual(result["files"], 3)
@@ -48,18 +50,18 @@ class SummarizeTest(unittest.TestCase):
         self.assertEqual(result["duration_unknown"], 1)
         self.assertEqual(result["known_total_hours"], 2.0)
 
-    def test_合計時間を小数第2位で丸める(self):
+    def test_the_total_is_rounded_to_two_places(self):
         items = [{"videoMediaMetadata": {"durationMillis": "1000000"}}]
         self.assertEqual(inv.summarize(items)["known_total_hours"], 0.28)
 
-    def test_空の入力でもゼロを返す(self):
+    def test_empty_input_comes_back_as_zeroes(self):
         result = inv.summarize([])
         self.assertEqual(result["files"], 0)
         self.assertEqual(result["duration_known"], 0)
         self.assertEqual(result["duration_unknown"], 0)
         self.assertEqual(result["known_total_hours"], 0)
 
-    def test_全件が不明でも合計は0時間になる(self):
+    def test_all_unknown_still_totals_zero_hours(self):
         result = inv.summarize([{}, {}])
         self.assertEqual(result["duration_unknown"], 2)
         self.assertEqual(result["known_total_hours"], 0)
